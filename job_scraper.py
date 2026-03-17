@@ -68,7 +68,7 @@ GEO_EXCLUDE = [
     "london", "dubai", "toronto", "ontario", "vancouver", "montreal",
     "remote - uk", "remote - eu", "remote - europe",
     "remote uk", "& ie", "uk &",
-    ", amer", "- amer", "-amer",
+    ", amer", "- amer", "-amer","switzerland", "ch-switzerland", "zürich", "zurich",
 ]
 
 TITLE_GEO_EXCLUDE = [
@@ -113,7 +113,8 @@ Background: 8+ years enterprise SaaS — CSM, analytics, BI, API integration con
 Key strengths: Enterprise customer relationships, executive business reviews, data/analytics enablement, retention & expansion
 Technical skills: SQL, Tableau, Salesforce, OData/API integration, platform analytics
 What matters: Mission-aligned companies (open source, data tooling, climate), technical depth, mid-market to enterprise segment
-Not interested in: Finance/fintech, legal tech, healthcare, highly quota-heavy SE roles
+Not interested in: Fintech, legal tech, healthcare, highly quota-heavy SE roles
+Hard disqualifiers (auto score 1): Role is outside the US or requires relocation, requires hands-on data engineering (Spark, DBT, Snowpark, Databricks, PySpark), requires software engineering or coding as primary job function, is a quota-carrying AE or sales role
 Ideal fit signals: Data/analytics product, developer tooling, post-sales technical advisory, CSM with data angle, Product Expert at a tool he'd actually use
 """
 
@@ -409,13 +410,13 @@ Description:
 {desc}
 
 Score this job's fit on a scale of 1-5 where:
-- 5 — excellent match: right role type, right company type, strong technical/data angle, would genuinely excite Matt
-- 4 — solid match: good role and company fit, minor gaps or unknowns
-- 3 — plausible but meaningful concerns: wrong sector, quota-heavy, too junior/senior, or unclear fit
+- 5 — excellent match: right role type, right company type, strong technical/data angle, remote-friendly, US-based, would genuinely excite Matt
+- 4 — solid match: right role type and company type, but has a specific minor gap — must have a concrete reason to score this high, not just "seems fine"
+- 3 — plausible but meaningful concerns: wrong sector, quota-heavy, too junior/senior, scaled/pooled CS model, or unclear fit
 - 2 — weak fit: significant misalignment on role type, sector, or seniority
-- 1 — poor fit: wrong role entirely, excluded sector (fintech, legal, healthcare), or highly quota-driven SE
+- 1 — poor fit: wrong role entirely, excluded sector, outside the US, requires hands-on data engineering (Spark/DBT/Snowpark/Databricks), requires software engineering as primary function, or highly quota-driven sales
 
-Be critical and discriminating. Reserve 5s for genuinely strong matches. Most jobs should score 2-4.
+Be critical and discriminating. Reserve 5s for genuinely strong matches. A 4 requires a specific positive reason. When in doubt, score down not up. Most jobs should score 2-3.
 Then write 2-3 sentences of honest analysis. Be direct — mention what aligns AND what gives pause.
 
 Respond ONLY in this JSON format (no markdown, no extra text):
