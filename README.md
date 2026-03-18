@@ -1,6 +1,6 @@
 # Job Scraper
 
-A Python job scraper built during an active job search. Scrapes Greenhouse, Lever, and Ashby ATS APIs across a curated list of target companies, filters results by role type, seniority, and location, scores each match using the Anthropic API, and writes new jobs to a Notion database daily.
+A Python job scraper built during an active job search. Scrapes Greenhouse, Lever, and Ashby ATS APIs across a curated list of target companies — plus Remotive and Jobicy remote job boards — filters results by role type, seniority, and location, scores each match using the Anthropic API, and writes new jobs to a Notion database daily.
 
 Built and iterated with help from Claude. Not written by an engineer — written by a CSM who identified a problem and figured out the tools to solve it.
 
@@ -8,14 +8,14 @@ Built and iterated with help from Claude. Not written by an engineer — written
 
 ## What it does
 
-- Scrapes job listings from **76 target companies** across three ATS platforms (Greenhouse, Lever, Ashby)
-- Filters by **title keywords** (CSM, TAM, Product Expert, Solutions Engineer, etc.)
+- Scrapes job listings from **80+ target companies** across Greenhouse, Lever, and Ashby ATS platforms
+- Also pulls from **Remotive** and **Jobicy** remote-only job boards for broader coverage
+- Filters by **title keywords** (CSM, TAM, Product Expert, Customer Engineer, etc.)
 - Filters out senior/director-level roles and non-US/non-remote locations
 - **Deduplicates** against existing Notion rows so you only see new jobs
 - **Scores each job 1–5** using Claude Haiku based on a candidate profile and resume summary
 - Writes results to a **Notion database** with score, notes, salary, source, and status
-- Supports a **dry-run mode** (`--test`) for testing without API calls or writes
-- Supports a **preview rescore** (`--preview-rescore`) to review scores in terminal before pushing to Notion
+- Supports multiple run modes for testing and reviewing scores before committing to Notion
 
 ---
 
@@ -24,7 +24,7 @@ Built and iterated with help from Claude. Not written by an engineer — written
 ### 1. Clone the repo
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/job-scraper.git
+git clone https://github.com/Matt-Kobzik/job-scraper.git
 cd job-scraper
 ```
 
@@ -85,13 +85,20 @@ python3 job_scraper.py
 # Dry run — scrape only, print matches to terminal, no writes or API calls
 python3 job_scraper.py --test
 
-# Preview rescore — score unscored Notion rows and print to terminal, no writes
+# Preview scrape — scrape + score + print sorted results to terminal, no Notion writes
+# Use this to validate quality before committing to Notion
+python3 job_scraper.py --preview-scrape
+
+# Preview scrape with a limit (cheaper for spot-checking scoring quality)
+python3 job_scraper.py --preview-scrape --limit 10
+
+# Preview rescore — score existing unscored Notion rows and print to terminal, no writes
 python3 job_scraper.py --preview-rescore
 
-# Preview rescore with a limit (useful for testing scoring quality cheaply)
+# Preview rescore with a limit
 python3 job_scraper.py --preview-rescore --limit 10
 
-# Rescore — score unscored rows and write scores to Notion
+# Rescore — score all unscored Notion rows and write scores to Notion
 python3 job_scraper.py --rescore
 ```
 

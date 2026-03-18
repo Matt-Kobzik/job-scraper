@@ -68,7 +68,8 @@ GEO_EXCLUDE = [
     "london", "dubai", "toronto", "ontario", "vancouver", "montreal",
     "remote - uk", "remote - eu", "remote - europe",
     "remote uk", "& ie", "uk &",
-    ", amer", "- amer", "-amer","switzerland", "ch-switzerland", "zürich", "zurich",
+    ", amer", "- amer", "-amer",
+    "switzerland", "ch-switzerland", "zürich", "zurich",
 ]
 
 TITLE_GEO_EXCLUDE = [
@@ -113,8 +114,7 @@ Background: 8+ years enterprise SaaS — CSM, analytics, BI, API integration con
 Key strengths: Enterprise customer relationships, executive business reviews, data/analytics enablement, retention & expansion
 Technical skills: SQL, Tableau, Salesforce, OData/API integration, platform analytics
 What matters: Mission-aligned companies (open source, data tooling, climate), technical depth, mid-market to enterprise segment
-Not interested in: Fintech, legal tech, healthcare, highly quota-heavy SE roles
-Hard disqualifiers (auto score 1): Role is outside the US or requires relocation, requires hands-on data engineering (Spark, DBT, Snowpark, Databricks, PySpark), requires software engineering or coding as primary job function, is a quota-carrying AE or sales role
+Not interested in: Finance/fintech, legal tech, healthcare, highly quota-heavy SE roles
 Ideal fit signals: Data/analytics product, developer tooling, post-sales technical advisory, CSM with data angle, Product Expert at a tool he'd actually use
 """
 
@@ -241,6 +241,10 @@ COMPANIES = [
     {"name": "Neon",                "ats": "ashby",      "id": "Neon"},
     {"name": "Zapier",              "ats": "ashby",      "id": "zapier"},
     {"name": "Vercel",              "ats": "ashby",      "id": "vercel"},
+    # ── Job Boards ─────────────────────────────────────────────────────────────
+    # Board-wide fetches — not per-company. id field unused, pass empty string.
+    {"name": "Remotive",            "ats": "remotive",   "id": ""},
+    {"name": "Jobicy",              "ats": "jobicy",     "id": ""},
 ]
 
 # ── FETCHERS ───────────────────────────────────────────────────────────────────
@@ -284,6 +288,47 @@ def fetch_ashby(company_id):
     except Exception as e:
         print(f"  [Ashby] Error: {e}")
         return []
+
+def fetch_remotive():
+    # Remotive is a remote-only board with a free public API (no auth required).
+    # We query two categories and combine results. Returns raw job list.
+    # API docs: https://github.com/remotive-com/remote-jobs-api
+    results = []
+    for category in ["customer-success", "all-others"]:
+        url = f"https://remotive.com/api/remote-jobs?category={category}&limit=50"
+        try:
+            r = requests.get(url, timeout=10)
+            r.raise_for_status()
+            results.extend(r.json().get("jobs", []))
+        except Exception as e:
+            print(f"  [Remotive] Error fetching '{category}': {e}")
+        time.sleep(0.5)
+    return results
+
+def fetch_jobicy():
+    # Jobicy is a remote-only board with a free public API (no auth required).
+    # Three calls: one by industry category, two by keyword. Deduped by ID.
+    # API docs: https://github.com/Jobicy/remote-jobs-api
+    results  = []
+    seen_ids = set()
+    searches = [
+        "https://jobicy.com/api/v2/remote-jobs?count=50&geo=usa&industry=supporting",
+        "https://jobicy.com/api/v2/remote-jobs?count=50&geo=usa&tag=customer+success+manager",
+        "https://jobicy.com/api/v2/remote-jobs?count=50&geo=usa&tag=technical+account+manager",
+    ]
+    for url in searches:
+        try:
+            r = requests.get(url, timeout=10)
+            r.raise_for_status()
+            for job in r.json().get("jobs", []):
+                if str(job.get("id", "")) not in seen_ids:
+                    seen_ids.add(str(job.get("id", "")))
+                    results.append(job)
+        except Exception as e:
+            print(f"  [Jobicy] Error: {e}")
+        time.sleep(0.5)
+    return results
+
 
 # ── FILTERS ────────────────────────────────────────────────────────────────────
 
@@ -387,6 +432,48 @@ def parse_ashby_job(job, company_name):
         "description": description,
     }
 
+def parse_remotive_job(job):
+    # Remotive field names differ from ATS sources — map them to our standard dict.
+    job_id   = str(job.get("id", ""))
+    location = job.get("candidate_required_location", "") or "Remote"
+    sal      = job.get("salary", "") or ""
+    pub_date = (job.get("publication_date") or "")[:10]
+    return {
+        "id":          f"rm_{job_id}",
+        "company":     job.get("company_name", ""),
+        "title":       job.get("title", ""),
+        "location":    location,
+        "url":         job.get("url", ""),
+        "source":      "Remotive",
+        "date_found":  datetime.today().strftime("%Y-%m-%d"),
+        "updated_at":  pub_date,
+        "salary":      sal,
+        "metadata":    "",
+        "description": job.get("description", "") or "",
+    }
+
+def parse_jobicy_job(job):
+    # Jobicy uses camelCase field names — map them to our standard dict.
+    job_id   = str(job.get("id", ""))
+    sal_min  = job.get("annualSalaryMin", "")
+    sal_max  = job.get("annualSalaryMax", "")
+    currency = job.get("salaryCurrency", "USD")
+    salary   = f"${sal_min}–${sal_max} {currency}" if sal_min and sal_max else ""
+    pub_date = (job.get("pubDate") or "")[:10]
+    return {
+        "id":          f"jc_{job_id}",
+        "company":     job.get("companyName", ""),
+        "title":       job.get("jobTitle", ""),
+        "location":    job.get("jobGeo", "") or "Remote",
+        "url":         job.get("url", ""),
+        "source":      "Jobicy",
+        "date_found":  datetime.today().strftime("%Y-%m-%d"),
+        "updated_at":  pub_date,
+        "salary":      salary,
+        "metadata":    "",
+        "description": job.get("jobDescription", "") or "",
+    }
+
 # ── FIT SCORING ────────────────────────────────────────────────────────────────
 
 def score_job(job):
@@ -410,13 +497,13 @@ Description:
 {desc}
 
 Score this job's fit on a scale of 1-5 where:
-- 5 — excellent match: right role type, right company type, strong technical/data angle, remote-friendly, US-based, would genuinely excite Matt
-- 4 — solid match: right role type and company type, but has a specific minor gap — must have a concrete reason to score this high, not just "seems fine"
-- 3 — plausible but meaningful concerns: wrong sector, quota-heavy, too junior/senior, scaled/pooled CS model, or unclear fit
+- 5 — excellent match: right role type, right company type, strong technical/data angle, would genuinely excite Matt
+- 4 — solid match: good role and company fit, minor gaps or unknowns
+- 3 — plausible but meaningful concerns: wrong sector, quota-heavy, too junior/senior, or unclear fit
 - 2 — weak fit: significant misalignment on role type, sector, or seniority
-- 1 — poor fit: wrong role entirely, excluded sector, outside the US, requires hands-on data engineering (Spark/DBT/Snowpark/Databricks), requires software engineering as primary function, or highly quota-driven sales
+- 1 — poor fit: wrong role entirely, excluded sector (fintech, legal, healthcare), or highly quota-driven SE
 
-Be critical and discriminating. Reserve 5s for genuinely strong matches. A 4 requires a specific positive reason. When in doubt, score down not up. Most jobs should score 2-3.
+Be critical and discriminating. Reserve 5s for genuinely strong matches. Most jobs should score 2-4.
 Then write 2-3 sentences of honest analysis. Be direct — mention what aligns AND what gives pause.
 
 Respond ONLY in this JSON format (no markdown, no extra text):
@@ -661,6 +748,12 @@ def run(dry_run=False):
         elif ats == "ashby":
             raw    = fetch_ashby(cid)
             parsed = [parse_ashby_job(j, name) for j in raw]
+        elif ats == "remotive":
+            raw    = fetch_remotive()
+            parsed = [parse_remotive_job(j) for j in raw]
+        elif ats == "jobicy":
+            raw    = fetch_jobicy()
+            parsed = [parse_jobicy_job(j) for j in raw]
         else:
             continue
 
@@ -764,11 +857,103 @@ def preview_rescore(limit=None):
         print(f"         {notes}\n")
 
 
+def preview_scrape(limit=None):
+    """Scrape, filter, score, and print results to terminal. No Notion writes."""
+    if not ANTHROPIC_API_KEY:
+        print("ERROR: Set ANTHROPIC_API_KEY before running --preview-scrape.")
+        return
+    print(f"\n{'='*60}")
+    print(f"Preview Scrape — {datetime.today().strftime('%Y-%m-%d %H:%M')}")
+    print(f"(terminal only — nothing will be written to Notion)")
+    print(f"{'='*60}\n")
+
+    # Pull existing IDs from Notion so we don't score jobs already in the feed
+    print("Fetching existing job IDs from Notion...")
+    try:
+        existing_ids = get_existing_notion_ids()
+        print(f"Found {len(existing_ids)} existing job IDs.\n")
+    except Exception as e:
+        print(f"ERROR connecting to Notion: {e}")
+        return
+
+    new_jobs = []
+
+    for company in COMPANIES:
+        name    = company["name"]
+        ats     = company["ats"]
+        cid     = company["id"]
+        print(f"Fetching {company['name']} ({ats})...")
+
+        if ats == "greenhouse":
+            raw    = fetch_greenhouse(cid)
+            parsed = [parse_greenhouse_job(j, name) for j in raw]
+        elif ats == "lever":
+            raw    = fetch_lever(cid)
+            parsed = [parse_lever_job(j, name) for j in raw]
+        elif ats == "ashby":
+            raw    = fetch_ashby(cid)
+            parsed = [parse_ashby_job(j, name) for j in raw]
+        elif ats == "remotive":
+            raw    = fetch_remotive()
+            parsed = [parse_remotive_job(j) for j in raw]
+        elif ats == "jobicy":
+            raw    = fetch_jobicy()
+            parsed = [parse_jobicy_job(j) for j in raw]
+        else:
+            continue
+
+        matched = 0
+        for job in parsed:
+            if job["id"] in existing_ids:
+                continue
+            if not matches_title(job["title"]):
+                continue
+            if not matches_seniority(job["title"]):
+                continue
+            if not matches_location(job["location"], job.get("title", "")):
+                continue
+            new_jobs.append(job)
+            matched += 1
+
+        if matched == 0 and raw:
+            print(f"  (no new matches from {len(raw)} postings)")
+        time.sleep(0.4)
+
+    print(f"\n{'─'*60}")
+    print(f"New jobs found: {len(new_jobs)}")
+
+    if not new_jobs:
+        print("Nothing to score.")
+        return
+
+    # Optionally limit how many jobs get scored (saves API cost during testing)
+    jobs_to_score = new_jobs[:limit] if limit else new_jobs
+    print(f"\nScoring {len(jobs_to_score)} jobs...\n")
+
+    results = []
+    for job in jobs_to_score:
+        print(f"  Scoring: {job['company']} — {job['title']}...")
+        score, notes = score_job(job)
+        if score is not None:
+            results.append((score, job['company'], job['title'], job['location'], notes))
+            print(f"    → {score}/5  {notes}")
+        else:
+            print(f"    → (scoring failed)")
+        time.sleep(0.3)
+
+    # Print sorted summary
+    results.sort(key=lambda x: x[0], reverse=True)
+    print(f"\n{'─'*60}")
+    print(f"RESULTS SORTED BY SCORE ({len(results)} jobs)\n")
+    for score, company, title, location, notes in results:
+        print(f"  [{score}/5]  {company} — {title} — {location}")
+        print(f"         {notes}\n")
+
+
 if __name__ == "__main__":
     if "--rescore" in sys.argv:
         rescore_unscored()
     elif "--preview-rescore" in sys.argv:
-        # Optional: pass --limit N to score only N jobs (e.g. --limit 10)
         limit = None
         if "--limit" in sys.argv:
             try:
@@ -776,6 +961,16 @@ if __name__ == "__main__":
             except (IndexError, ValueError):
                 pass
         preview_rescore(limit=limit)
+    elif "--preview-scrape" in sys.argv:
+        # Scrape + score + print to terminal. No Notion writes.
+        # Optional: --limit N to score only the first N matches (saves API cost)
+        limit = None
+        if "--limit" in sys.argv:
+            try:
+                limit = int(sys.argv[sys.argv.index("--limit") + 1])
+            except (IndexError, ValueError):
+                pass
+        preview_scrape(limit=limit)
     else:
         dry_run = "--test" in sys.argv
         run(dry_run=dry_run)
